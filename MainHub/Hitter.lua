@@ -45,15 +45,45 @@ local function RegisterAttack()
 	return true
 end
 
-local function SendHit(targetLimb)
-	if typeof(targetLimb) ~= "Instance" or not targetLimb:IsA("BasePart") then
+local function resolveLimb(target)
+	if typeof(target) ~= "Instance" then
+		return nil
+	end
+	if target:IsA("BasePart") then
+		return target
+	end
+	if target:IsA("Model") then
+		return target:FindFirstChildWhichIsA("BasePart")
+	end
+	return nil
+end
+
+local function SendHit(target)
+	local limbs = {}
+
+	if typeof(target) == "Instance" then
+		local limb = resolveLimb(target)
+		if limb then
+			table.insert(limbs, limb)
+		end
+	elseif typeof(target) == "table" then
+		for _, item in ipairs(target) do
+			local limb = resolveLimb(item)
+			if limb then
+				table.insert(limbs, limb)
+			end
+		end
+	end
+
+	if #limbs == 0 then
 		return
 	end
-	if not RegisterAttack() then
-		return
-	end
+
+	local first = table.remove(limbs, 1)
+
+	RegisterAttack()
 	task.wait()
-	coroutine.resume(hitThread, targetLimb, {})
+	coroutine.resume(hitThread, first, limbs)
 end
 
 coroutine.resume(hitThread)
