@@ -2,9 +2,10 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local RegisterAttack_RAM = {
+	LastUse = 0,
 	Combo = 1,
-	LastUse = tick(),
 }
+
 local _RAMRemotes = {
 	["RE/RegisterHit"] = ReplicatedStorage.Modules.Net["RE/RegisterHit"],
 	["RE/RegisterAttack"] = ReplicatedStorage.Modules.Net["RE/RegisterAttack"],
@@ -24,16 +25,24 @@ local hitThread = coroutine.create(function()
 end)
 
 local function RegisterAttack()
-	if tick() - RegisterAttack_RAM.LastUse > 0.5 then
-		_RAMRemotes["RE/RegisterAttack"]:FireServer(0.5, RegisterAttack_RAM)
-		RegisterAttack_RAM.Combo += 1
-		RegisterAttack_RAM.LastUse = tick()
-		if RegisterAttack_RAM.Combo > 5 then
-			RegisterAttack_RAM.Combo = 1
-		end
-		print("Allowed reg")
-	else
+	local Now = tick()
+
+	if Now - RegisterAttack_RAM.LastUse <= 0.5 then
+		return false
 	end
+
+	RegisterAttack_RAM.Combo += 1
+
+	if RegisterAttack_RAM.Combo > 5 then
+		RegisterAttack_RAM.Combo = 1
+	end
+
+	RegisterAttack_RAM.LastUse = Now
+
+	_RAMRemotes["RE/RegisterAttack"]:FireServer(0.5, RegisterAttack_RAM)
+
+	print("Allowed reg")
+	return true
 end
 
 local function SendHit(targetLimb)
