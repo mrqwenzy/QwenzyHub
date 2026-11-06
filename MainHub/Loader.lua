@@ -1,20 +1,37 @@
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 warn("Cappuccina")
+
 local _RAMRemotes = {
 	["RE/RegisterHit"] = ReplicatedStorage.Modules.Net["RE/RegisterHit"],
 	["RE/RegisterAttack"] = ReplicatedStorage.Modules.Net["RE/RegisterAttack"],
 }
 
-local Players = game:GetService("Players")
-
+local _RAMLinks = {
+	["MobOperations"] = "https://github.com/mrqwenzy/QwenzyHub/blob/main/MainHub/MobOperations.lua",
+}
 type ClosestEnemiesConfig = {
 	Multi: boolean?,
 	Players: boolean?,
 	Mobs: boolean?,
 	Distance: number?,
 }
+
+--// Extended Loadings
+
+local Source = game:HttpGet(_RAMLinks.MobOperations)
+
+local Chunk = loadstring(Source)
+assert(Chunk, "Compilation failed")
+
+local MobOperations = Chunk() :: (Config: ClosestEnemiesConfig?) -> any
+
+local Result = MobOperations({
+	Multi = true,
+	Distance = 100,
+})
 
 local function GetClosestEnemies(Config: ClosestEnemiesConfig)
 	Config = Config or {}
