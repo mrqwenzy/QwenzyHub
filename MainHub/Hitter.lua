@@ -49,7 +49,9 @@ local function SendHit(targetLimb)
 	if typeof(targetLimb) ~= "Instance" or not targetLimb:IsA("BasePart") then
 		return
 	end
-	RegisterAttack()
+	if not RegisterAttack() then
+		return
+	end
 	task.wait()
 	coroutine.resume(hitThread, targetLimb, {})
 end
