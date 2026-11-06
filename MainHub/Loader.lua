@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+warn("Cappuccina")
 local _RAMRemotes = {
 	["RE/RegisterHit"] = ReplicatedStorage.Modules.Net["RE/RegisterHit"],
 	["RE/RegisterAttack"] = ReplicatedStorage.Modules.Net["RE/RegisterAttack"],
