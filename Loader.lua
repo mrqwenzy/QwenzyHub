@@ -23,11 +23,8 @@ type ClosestEnemiesConfig = {
 
 local MobOperations = loadstring(game:HttpGet(_RAMLinks.MobOperations))() :: (Config: ClosestEnemiesConfig?) -> any
 
-print(HttpService:JSONDecode(MobOperations({
-	Multi = true,
-	Distance = 100,
-})))
-
+for _, v in MobOperations({ Multi = true, Distance = 100 }) do
+end
 local function GetClosestEnemies(Config: ClosestEnemiesConfig)
 	Config = Config or {}
 

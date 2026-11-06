@@ -1,6 +1,13 @@
 local Players = game:GetService("Players")
 
-local function GetClosestEnemies(Config)
+type ClosestEnemiesConfig = {
+	Multi: boolean?,
+	Players: boolean?,
+	Mobs: boolean?,
+	Distance: number?,
+}
+
+local function GetClosestEnemies(Config: ClosestEnemiesConfig)
 	Config = Config or {}
 
 	local Multi = Config.Multi or false
