@@ -15,7 +15,7 @@ type ClosestEnemiesConfig = {
 	Distance: number?,
 }
 
-local function GetClosestEnemies(Config: ClosestEnemiesConfig?)
+local function GetClosestEnemies(Config: ClosestEnemiesConfig)
 	Config = Config or {}
 
 	local Multi = Config.Multi or false
