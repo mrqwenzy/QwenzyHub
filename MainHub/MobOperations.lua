@@ -1,5 +1,5 @@
 local Players = game:GetService("Players")
-
+-- fuckas
 type ClosestEnemiesConfig = {
 	Multi: boolean?,
 	Players: boolean?,
