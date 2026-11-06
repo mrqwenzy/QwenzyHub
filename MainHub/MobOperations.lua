@@ -6,7 +6,7 @@ type ClosestEnemiesConfig = {
 	Mobs: boolean?,
 	Distance: number?,
 }
-
+-- pls dont hak
 local function GetClosestEnemies(Config: ClosestEnemiesConfig)
 	Config = Config or {}
 
