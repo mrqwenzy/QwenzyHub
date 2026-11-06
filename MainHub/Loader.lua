@@ -10,7 +10,7 @@ local _RAMRemotes = {
 }
 
 local _RAMLinks = {
-	["MobOperations"] = "https://github.com/mrqwenzy/QwenzyHub/blob/main/MainHub/MobOperations.lua",
+	["MobOperations"] = "https://raw.githubusercontent.com/mrqwenzy/QwenzyHub/refs/heads/main/MainHub/MobOperations.lua",
 }
 type ClosestEnemiesConfig = {
 	Multi: boolean?,
@@ -21,17 +21,12 @@ type ClosestEnemiesConfig = {
 
 --// Extended Loadings
 
-local Source = game:HttpGet(_RAMLinks.MobOperations)
+local MobOperations = loadstring(game:HttpGet(_RAMLinks.MobOperations))() :: (Config: ClosestEnemiesConfig?) -> any
 
-local Chunk = loadstring(Source)
-assert(Chunk, "Compilation failed")
-
-local MobOperations = Chunk() :: (Config: ClosestEnemiesConfig?) -> any
-
-local Result = MobOperations({
+print(HttpService:JSONDecode(MobOperations({
 	Multi = true,
 	Distance = 100,
-})
+})))
 
 local function GetClosestEnemies(Config: ClosestEnemiesConfig)
 	Config = Config or {}
