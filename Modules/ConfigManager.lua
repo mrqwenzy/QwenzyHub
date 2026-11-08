@@ -57,15 +57,28 @@ function ConfigManager.new()
 		CurrentName = "default",
 	}
 
-	function self:Register(Flag, Element, DefaultValue)
+	function self:Register(Flag, Element, DefaultValue, Adapter)
 		assert(type(Flag) == "string" and Flag ~= "", "Config flag must be a non-empty string")
-		assert(type(Element) == "table" and type(Element.Set) == "function", "Config element must support Set(value)")
+		assert(type(Element) == "table", "Config element must be a table")
 		assert(DefaultValue ~= nil, "Config element must have an explicit default value")
+		Adapter = Adapter or {}
+		assert(type(Adapter.Get) == "function" or Element.Value ~= nil, "Config element needs Value or Adapter.Get")
+		assert(type(Adapter.Set) == "function" or type(Element.Set) == "function", "Config element needs Set(value) or Adapter.Set")
 
 		self.Elements[Flag] = {
 			Element = Element,
 			Default = DefaultValue,
+			Get = Adapter.Get,
+			Set = Adapter.Set,
 		}
+	end
+
+	function self:Apply(Entry, Value)
+		if type(Entry.Set) == "function" then
+			Entry.Set(Value)
+		else
+			Entry.Element:Set(Value)
+		end
 	end
 
 	function self:List()
@@ -86,6 +99,20 @@ function ConfigManager.new()
 		return Names
 	end
 
+	function self:Exists(Name)
+		Name = normalizeName(Name or self.CurrentName)
+		if not Name then
+			return false, "Enter a valid config name"
+		end
+
+		local Ok, Error = ensureFolder()
+		if not Ok then
+			return false, Error
+		end
+
+		return isfile(filePath(Name))
+	end
+
 	function self:Save(Name)
 		Name = normalizeName(Name or self.CurrentName)
 		if not Name then
@@ -99,7 +126,7 @@ function ConfigManager.new()
 
 		local Values = {}
 		for Flag, Entry in pairs(self.Elements) do
-			local Value = getElementValue(Entry.Element)
+			local Value = Entry.Get and Entry.Get() or getElementValue(Entry.Element)
 			if type(Value) == "boolean" or type(Value) == "number" or type(Value) == "string" or type(Value) == "table" then
 				Values[Flag] = Value
 			end
@@ -135,7 +162,7 @@ function ConfigManager.new()
 		local Path = filePath(Name)
 		if not isfile(Path) then
 			for _, Entry in pairs(self.Elements) do
-				Entry.Element:Set(Entry.Default)
+				self:Apply(Entry, Entry.Default)
 			end
 			return false, "Config file does not exist"
 		end
@@ -166,7 +193,7 @@ function ConfigManager.new()
 				end
 			end
 
-			Entry.Element:Set(Value)
+			self:Apply(Entry, Value)
 		end
 
 		self.CurrentName = Name
@@ -177,6 +204,10 @@ function ConfigManager.new()
 		Name = normalizeName(Name or self.CurrentName)
 		if not Name then
 			return false, "Enter a valid config name"
+		end
+		local FolderOk, FolderError = ensureFolder()
+		if not FolderOk then
+			return false, FolderError
 		end
 		if type(delfile) ~= "function" then
 			return false, "File deletion API is unavailable"
@@ -249,11 +280,40 @@ function ConfigManager.new()
 		})
 
 		Section:Button({
+			Title = "Create config",
+			Callback = function()
+				local Name = normalizeName(SelectedName)
+				if not Name then
+					warn("[Qwenzy] Config creation failed: Enter a valid config name")
+					return
+				end
+				local Exists, ExistsError = self:Exists(Name)
+				if ExistsError then
+					warn("[Qwenzy] Config creation failed: " .. tostring(ExistsError))
+					return
+				end
+				if Exists then
+					warn("[Qwenzy] Config creation failed: Config already exists")
+					return
+				end
+
+				local Ok, Error = self:Save(Name)
+				if Ok then
+					SelectedName = self.CurrentName
+					print("[Qwenzy] Created config: " .. self.CurrentName)
+					RefreshConfigs()
+				else
+					warn("[Qwenzy] Config creation failed: " .. tostring(Error))
+				end
+			end,
+		})
+
+		Section:Button({
 			Title = "Save config",
 			Callback = function()
 				local Ok, Error = self:Save(SelectedName)
 				if Ok then
-				SelectedName = self.CurrentName
+					SelectedName = self.CurrentName
 					print("[Qwenzy] Saved config: " .. self.CurrentName)
 					RefreshConfigs()
 				else
