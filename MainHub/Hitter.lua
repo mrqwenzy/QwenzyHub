@@ -19,7 +19,6 @@ local hitThread = coroutine.create(function()
 
 	while true do
 		local targetLimb, hitData = coroutine.yield()
-		warn("FIRE INVOKED")
 		Event:FireServer(targetLimb, hitData, nil, token)
 	end
 end)
@@ -41,7 +40,6 @@ local function RegisterAttack()
 
 	_RAMRemotes["RE/RegisterAttack"]:FireServer(0.5, RegisterAttack_RAM)
 
-	print("Allowed reg")
 	return true
 end
 
