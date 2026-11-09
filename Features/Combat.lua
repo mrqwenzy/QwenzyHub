@@ -30,7 +30,7 @@ function Combat.Build(Tab, App)
 		end,
 	})
 
-	local AttackDelay = AttackSection:Slider({
+	local AttackDelay = RightVStack:Slider({
 		Title = "Fast attack interval",
 		Value = {
 			Min = 0.1,
