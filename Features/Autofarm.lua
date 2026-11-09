@@ -1,6 +1,11 @@
 local Combat = {}
 
 function Combat.Build(Tab, App)
+	-- Guard: only build once per session
+	if App._CombatBuilt then
+		return App._CombatBuilt
+	end
+
 	App.State.Autofarm = {
 		Type = "Level",
 		Active = false,
@@ -20,8 +25,6 @@ function Combat.Build(Tab, App)
 	}
 
 	local Player = Services.Players.LocalPlayer
-
-	-- From App.Modules
 	local QuestManager = App.Modules.QuestManager
 
 	-- ============================================================
@@ -110,11 +113,11 @@ function Combat.Build(Tab, App)
 			return
 		end
 
-		-- 1. Ensure quest
+		-- 1. Ensure quest (accept / switch / complete detection / self-heal)
 		local action, reason = QuestManager.EnsureQuest()
 		if action ~= "none" then
 			RAM.Status = action .. ":" .. (reason or "")
-			if action == "accepted" or action == "switched" or action == "abandoned_boss" then
+			if action == "accepted" or action == "switched" or action == "abandoned_boss" or action == "completed" then
 				RAM.Target = nil
 			end
 		end
@@ -152,23 +155,37 @@ function Combat.Build(Tab, App)
 	end
 
 	-- ============================================================
-	-- Heartbeat driver
+	-- Heartbeat loop — started/stopped by toggle
 	-- ============================================================
+	local heartbeatConn = nil
 	local lastRun = 0
-	Services.RunService.Heartbeat:Connect(function()
-		if not App.State.Autofarm.Active then
-			return
-		end
-		if tick() - lastRun < 0.1 then
-			return
-		end
-		lastRun = tick()
 
-		local ok, err = pcall(Update)
-		if not ok then
-			RAM.Status = "Error:" .. tostring(err)
+	local function startLoop()
+		if heartbeatConn then
+			return
 		end
-	end)
+		heartbeatConn = Services.RunService.Heartbeat:Connect(function()
+			if not App.State.Autofarm.Active then
+				return
+			end
+			if tick() - lastRun < 0.1 then
+				return
+			end
+			lastRun = tick()
+
+			local ok, err = pcall(Update)
+			if not ok then
+				RAM.Status = "Error:" .. tostring(err)
+			end
+		end)
+	end
+
+	local function stopLoop()
+		if heartbeatConn then
+			heartbeatConn:Disconnect()
+			heartbeatConn = nil
+		end
+	end
 
 	-- ============================================================
 	-- UI
@@ -184,23 +201,32 @@ function Combat.Build(Tab, App)
 			App.State.Autofarm.Active = Enabled
 			App.State.Autofarm.Type = "Level"
 
+			if QuestManager.SetEnabled then
+				QuestManager.SetEnabled(Enabled)
+			end
+
 			if not Enabled then
 				RAM.Target = nil
 				RAM.CurrentQuest = nil
 				RAM.RequiredEnemy = nil
 				RAM.Status = "Idle"
 				QuestManager.Reset()
+				stopLoop()
 			else
 				RAM.Status = "Starting"
+				startLoop()
 			end
 		end,
 	})
 
-	return {
+	local result = {
 		LevelAutofarm = LevelAutofarm,
 		RAM = RAM,
 		Update = Update,
 	}
+
+	App._CombatBuilt = result
+	return result
 end
 
 return Combat
