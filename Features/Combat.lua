@@ -17,6 +17,20 @@ function Combat.Build(Tab, App)
 		end,
 	})
 
+	local AttackDelay = Tab:Slider({
+		Title = "Fast attack interval",
+		Value = {
+			Min = 0.1, -- minimum value
+			Max = 1, -- maximum value
+			Default = 50, -- initial value
+		},
+		Step = 0.01, -- increment step (use 0.1 for floats). optional
+		Locked = false, -- disable slider. optional
+		Flag = "fastattack", -- for config saving. optional
+		Callback = function(value)
+			App.State.FastAttack.Interval = value
+		end,
+	})
 	App.ConfigFiles:Register("Combat.FastAttack", FastAttack, false)
 
 	return {
