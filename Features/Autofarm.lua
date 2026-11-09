@@ -7,7 +7,7 @@ function Combat.Build(Tab, App)
 	}
 
 	local FarmTab = Tab:Section({
-		Title = "Autofamr",
+		Title = "Autofarm",
 	})
 
 	local LevelAutofarm = FarmTab:Toggle({
