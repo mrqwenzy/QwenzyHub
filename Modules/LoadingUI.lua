@@ -76,9 +76,10 @@ function LoadingUI.new()
 		}):Play()
 
 		task.delay(1.1, function()
-			local Fade = TweenService:Create(Notice, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				TextTransparency = 1,
-			})
+			local Fade =
+				TweenService:Create(Notice, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+					TextTransparency = 1,
+				})
 			Fade:Play()
 			Fade.Completed:Wait()
 			Notice:Destroy()
