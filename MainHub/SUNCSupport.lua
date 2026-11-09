@@ -1,4 +1,5 @@
 return function(WindUI)
+	print("wetefe unc test")
 	local env = (getgenv and getgenv()) or _G
 	local RequiredAPIs = {
 		"request",
