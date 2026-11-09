@@ -7,7 +7,12 @@ function Combat.Build(Tab, App)
 		Interval = 0.4,
 	}
 
-	local AttackSection = Tab:Section({
+	local YourHStack = Tab:HStack()
+
+	local LeftVStack = YourHStack:VStack()
+	local RightVStack = YourHStack:VStack()
+
+	local AttackSection = LeftVStack:Section({
 		Title = "Attack",
 	})
 
