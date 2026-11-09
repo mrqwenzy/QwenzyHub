@@ -12,7 +12,7 @@ function Combat.Build(Tab, App)
 	})
 
 	local FastAttack = AttackSection:Toggle({
-		Title = "Fast Attack",
+		Title = "Fasts Attack",
 		Value = App.State.FastAttack.Active,
 		Callback = function(Enabled)
 			local Previous = App.State.FastAttack
