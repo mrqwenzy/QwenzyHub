@@ -107,8 +107,8 @@ local State = {
 	QuestDef = nil,
 	Enemy = nil,
 	Accepted = false,
+	Disabled = true,
 	LastAcceptAttempt = 0,
-	LastCompletionCheck = 0,
 	LastPickerRun = 0,
 	CachedBestName = nil,
 	CachedBestId = nil,
@@ -117,7 +117,7 @@ local State = {
 }
 
 local Completed = {}
-local Failed = {} -- Failed[name][id] = true — skip for a while
+local Failed = {}
 
 function QuestManager.GetState()
 	return State
@@ -136,12 +136,18 @@ function QuestManager.Reset()
 	State.Enemy = nil
 	State.Accepted = false
 	State.LastAcceptAttempt = 0
-	State.LastCompletionCheck = 0
 	State.LastPickerRun = 0
 	State.CachedBestName = nil
 	State.CachedBestId = nil
 	State.CachedBestDef = nil
 	State.CachedLevel = -1
+end
+
+function QuestManager.SetEnabled(enabled)
+	State.Disabled = not enabled
+	if not enabled then
+		QuestManager.Reset()
+	end
 end
 
 function QuestManager.IsCompleted(name, id)
@@ -168,7 +174,7 @@ local function isFailed(name, id)
 end
 
 -- ============================================================
--- Picker (cached — only re-runs when level changes or every 5s)
+-- Picker (cached)
 -- ============================================================
 local function refreshPickerCache(level)
 	State.CachedLevel = level
@@ -204,7 +210,7 @@ function QuestManager.FindBestQuestForLevel(level)
 end
 
 -- ============================================================
--- Accept
+-- Accept — the ONLY place StartQuest is called
 -- ============================================================
 local function firstEnemy(def)
 	if typeof(def.Task) ~= "table" then
@@ -239,14 +245,27 @@ function QuestManager.Accept(questName, questId, def)
 	return false, "unknown:" .. tostring(r)
 end
 
-function QuestManager.EnsureQuest()
-	local now = tick()
+-- ============================================================
+-- ForceRePick — called when Combat detects "no targets for a while"
+-- ============================================================
+function QuestManager.ForceRePick()
+	if QuestManager.IsActive() then
+		QuestManager.MarkCompleted(State.QuestName, State.QuestId)
+	end
+	State.LastAcceptAttempt = 0
+end
 
+-- ============================================================
+-- EnsureQuest — accepts only when nothing active. No polling.
+-- ============================================================
+function QuestManager.EnsureQuest()
 	if State.Disabled then
 		return "none", "disabled"
 	end
 
-	-- Self-heal: abandon boss quest
+	local now = tick()
+
+	-- Self-heal boss
 	if QuestManager.IsActive() and isBossQuest(State.QuestName, State.QuestId, State.QuestDef) then
 		pcall(function()
 			CommF:InvokeServer("AbandonQuest")
@@ -256,56 +275,25 @@ function QuestManager.EnsureQuest()
 		return "abandoned_boss", "boss_detected"
 	end
 
-	-- HARD GATE: never fire StartQuest more than once per second
+	-- Already have an active quest → do nothing. Completion is detected by Combat.
+	if QuestManager.IsActive() then
+		return "none", "active"
+	end
+
+	-- Throttle
 	if now - State.LastAcceptAttempt < 1 then
 		return "none", "throttled"
 	end
 
-	-- ---- Case A: have an active quest → just verify it ----
-	if QuestManager.IsActive() then
-		-- Only re-check completion every 3s
-		if now - State.LastCompletionCheck < 3 then
-			return "none", "active_no_check"
-		end
-
-		State.LastCompletionCheck = now
-		State.LastAcceptAttempt = now -- consume throttle
-
-		local ok, r = pcall(function()
-			return CommF:InvokeServer("StartQuest", State.QuestName, State.QuestId)
-		end)
-
-		if ok and r == 0 then
-			-- Still active, all good. DO NOT fall through.
-			return "none", "still_active"
-		elseif ok and r == 2 then
-			-- Actually completed
-			QuestManager.MarkCompleted(State.QuestName, State.QuestId)
-			-- fall through to accept next
-		else
-			-- Server error / unknown — KEEP the current quest, do not accept new
-			return "none", "check_failed:" .. tostring(r)
-		end
-	end
-
-	-- ---- Case B: need to accept (only reached when quest is nil OR just completed) ----
 	local level = Player.Data.Level.Value
 	local bestName, bestId, bestDef = QuestManager.FindBestQuestForLevel(level)
-
 	if not bestName then
 		return "none", "no_quest_available"
 	end
 
-	-- Prevent accepting the exact same (name, id) that's already active
-	if State.Accepted and State.QuestName == bestName and State.QuestId == bestId then
-		return "none", "same_quest"
-	end
-
 	State.LastAcceptAttempt = now
-
 	local ok, reason = QuestManager.Accept(bestName, bestId, bestDef)
 	if ok then
-		State.LastCompletionCheck = now -- avoid instant re-check
 		return "accepted", bestName .. ":" .. bestId
 	end
 
@@ -320,7 +308,7 @@ function QuestManager.EnsureQuest()
 end
 
 -- ============================================================
--- Cached enemy lookup (single refresh per stale window)
+-- Enemy lookup (cached, one refresh per stale window)
 -- ============================================================
 local enemyCache = {}
 local enemyCacheTime = 0
@@ -342,6 +330,9 @@ local function refreshEnemyCache()
 end
 
 function QuestManager.FindNearestEnemy()
+	if State.Disabled then
+		return nil
+	end
 	if not QuestManager.IsActive() then
 		return nil
 	end
@@ -355,7 +346,6 @@ function QuestManager.FindNearestEnemy()
 	local wanted = State.Enemy
 	local list = enemyCache[wanted]
 
-	-- Only refresh ONCE per frame if stale or missing
 	if not list or #list == 0 or tick() - enemyCacheTime > CACHE_INTERVAL then
 		refreshEnemyCache()
 		list = enemyCache[wanted]
