@@ -12,7 +12,7 @@ function Combat.Build(Tab, App)
 
 	local LevelAutofarm = FarmTab:Toggle({
 		Title = "Level Autofarm",
-		Value = App.State.FastAttack.Active,
+		Value = App.State.Autofarm.Active,
 		Callback = function(Enabled)
 			App.State.Autofarm.Type = "Level"
 			App.State.Autofarm.Active = true
