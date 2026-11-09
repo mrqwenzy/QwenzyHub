@@ -32,6 +32,7 @@ function Combat.Build(Tab, App)
 		end,
 	})
 
+	print("21312312312")
 	local AttackDelay = AttackSection2:Slider({
 		Title = "Fast attack interval",
 		Value = {
