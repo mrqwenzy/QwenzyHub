@@ -15,7 +15,9 @@ function Combat.Build(Tab, App)
 	local AttackSection = LeftVStack:Section({
 		Title = "Attack",
 	})
-
+	local AttackSection2 = RightVStack:Section({
+		Title = "Attack",
+	})
 	local FastAttack = AttackSection:Toggle({
 		Title = "Fast Attack",
 		Value = App.State.FastAttack.Active,
@@ -30,7 +32,7 @@ function Combat.Build(Tab, App)
 		end,
 	})
 
-	local AttackDelay = RightVStack:Slider({
+	local AttackDelay = AttackSection2:Slider({
 		Title = "Fast attack interval",
 		Value = {
 			Min = 0.1,
