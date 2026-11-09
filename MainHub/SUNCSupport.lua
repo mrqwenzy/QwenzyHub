@@ -44,6 +44,16 @@ return function(WindUI)
 						print("[Qwenzy] Continuing with missing APIs.")
 					end,
 				},
+				{
+					Title = "Cancel",
+					Callback = function()
+						if env.QRR then
+							env.QRR:Disconnect()
+							env.QRR = nil
+						end
+						error("[Qwenzy] Initialization cancelled: incompatible executor.", 0)
+					end,
+				},
 			},
 		})
 	else
