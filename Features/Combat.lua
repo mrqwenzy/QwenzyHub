@@ -22,7 +22,7 @@ function Combat.Build(Tab, App)
 		Value = {
 			Min = 0.1, -- minimum value
 			Max = 1, -- maximum value
-			Default = 50, -- initial value
+			Default = 0.4, -- initial value
 		},
 		Step = 0.01, -- increment step (use 0.1 for floats). optional
 		Locked = false, -- disable slider. optional
