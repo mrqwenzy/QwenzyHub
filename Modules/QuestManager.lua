@@ -11,7 +11,7 @@ local CommF = Services.ReplicatedStorage.Remotes.CommF_
 local Quests = require(Services.ReplicatedStorage.Quests)
 
 -- ============================================================
--- Boss blacklist
+-- Boss blacklist — name-based
 -- ============================================================
 local BOSS_TARGETS = {
 	-- First Sea
@@ -62,17 +62,43 @@ local BOSS_TARGETS = {
 	["Soul Reaper"] = true,
 	["rip_indra"] = true,
 	["Rip_Return"] = true,
+	-- Common variants
+	["Swan Pirate"] = true,
+	["Swan Pirates"] = true,
 }
 
-local function isBossQuest(def)
+-- Multi-stage quests: only stage id 1 (the mob-kill stage) is farmable.
+-- Higher stage ids target the boss. Skip them entirely.
+local MULTI_STAGE_QUESTS = {
+	BartiloQuest = true,
+	CitizenQuest = true,
+	DressrosaQuestProgress = true,
+	ZouQuest = true,
+	SwanQuest = true,
+	MagmaQuest = true,
+	FishmanQuest = true,
+	ColosseumQuest = true,
+	PrisonerQuest = true,
+	ImpelQuest = true,
+}
+
+local function isBossQuest(questName, questId, def)
 	if typeof(def.Task) ~= "table" then
 		return false
 	end
+
+	-- Multi-stage: any id > 1 is the boss stage
+	if MULTI_STAGE_QUESTS[questName] and type(questId) == "number" and questId > 1 then
+		return true
+	end
+
+	-- Any boss name in Task → boss quest
 	for enemy in pairs(def.Task) do
 		if BOSS_TARGETS[enemy] then
 			return true
 		end
 	end
+
 	return false
 end
 
@@ -88,9 +114,11 @@ local State = {
 	Enemy = nil,
 	Accepted = false,
 	LastAcceptAttempt = 0,
+	LastSwitchAttempt = 0,
+	LastCompletionCheck = 0,
 }
 
-local Completed = {} -- Completed[questName][questId] = true (session)
+local Completed = {}
 
 function QuestManager.GetState()
 	return State
@@ -118,17 +146,25 @@ function QuestManager.MarkCompleted(name, id)
 	Completed[name] = Completed[name] or {}
 	Completed[name][id] = true
 	State.Accepted = false
+	State.QuestName = nil
+	State.QuestId = nil
+	State.QuestDef = nil
+	State.Enemy = nil
 end
 
 -- ============================================================
--- Picker
+-- Picker — returns best non-boss quest
 -- ============================================================
 function QuestManager.FindBestQuestForLevel(level)
 	local bestName, bestId, bestDef
 
 	for questName, group in pairs(Quests) do
 		for questId, def in pairs(group) do
-			if level >= def.LevelReq and not isBossQuest(def) and not QuestManager.IsCompleted(questName, questId) then
+			if
+				level >= def.LevelReq
+				and not isBossQuest(questName, questId, def)
+				and not QuestManager.IsCompleted(questName, questId)
+			then
 				if not bestDef or def.LevelReq > bestDef.LevelReq then
 					bestName, bestId, bestDef = questName, questId, def
 				end
@@ -140,7 +176,7 @@ function QuestManager.FindBestQuestForLevel(level)
 end
 
 -- ============================================================
--- Accept / cancel
+-- Accept
 -- ============================================================
 local function firstEnemy(def)
 	if typeof(def.Task) ~= "table" then
@@ -173,59 +209,61 @@ function QuestManager.Accept(questName, questId, def)
 	return false, "unknown:" .. tostring(r)
 end
 
-function QuestManager.Cancel()
-	pcall(function()
-		CommF:InvokeServer("AbandonQuest")
-	end)
-	QuestManager.Reset()
-end
-
 -- ============================================================
--- Ensure: accept or switch to a better quest
+-- EnsureQuest — accepts, switches on level-up, detects completion
 -- ============================================================
--- Returns: action, reason
---   action = "none"        nothing changed
---   action = "accepted"    accepted a new quest (was empty)
---   action = "switched"    switched to a higher-level quest
---   action = "completed"   current quest finished; will re-pick next call
---   action = "failed"
 function QuestManager.EnsureQuest()
-	if tick() - State.LastAcceptAttempt < 1 then
+	local now = tick()
+
+	-- Throttle all StartQuest attempts to once per second (server safety)
+	if now - State.LastAcceptAttempt < 1 then
 		return "none", "throttled"
 	end
-	State.LastAcceptAttempt = tick()
 
 	local level = Player.Data.Level.Value
 	local bestName, bestId, bestDef = QuestManager.FindBestQuestForLevel(level)
 
-	-- No quest available at all
+	-- Verify current quest is still valid by re-attempting StartQuest periodically.
+	-- If server returns 2, the quest is done → mark and pick next.
+	if QuestManager.IsActive() and now - State.LastCompletionCheck > 2 then
+		State.LastCompletionCheck = now
+		State.LastAcceptAttempt = now
+
+		local r = CommF:InvokeServer("StartQuest", State.QuestName, State.QuestId)
+		if r == 2 then
+			QuestManager.MarkCompleted(State.QuestName, State.QuestId)
+			-- fall through to accept best
+		elseif r == 0 then
+			-- still active, server re-confirmed
+			return "none", "still_active"
+		else
+			-- unknown state, keep going
+			State.Accepted = false
+		end
+	end
+
+	-- No best quest available
 	if not bestName then
 		return "none", "no_quest_available"
 	end
 
-	-- Already have a quest: is the best available higher-level than current?
+	-- If we already have a quest and it's the same or better than best → keep it
 	if QuestManager.IsActive() then
 		local curDef = State.QuestDef
-		if curDef and bestDef and bestDef.LevelReq > curDef.LevelReq then
-			-- Try to accept the better one directly (StartQuest replaces in most cases)
-			local ok, reason = QuestManager.Accept(bestName, bestId, bestDef)
-			if ok then
-				return "switched", bestName .. ":" .. bestId
-			end
-			if reason == "already_completed" then
-				QuestManager.MarkCompleted(bestName, bestId)
-			end
-			-- fall through: keep current quest
-			return "none", "switch_failed:" .. reason
+		if curDef and bestDef and bestDef.LevelReq <= curDef.LevelReq then
+			return "none", "already_active"
 		end
-
-		return "none", "already_active"
+		-- else: fall through to switch
 	end
 
-	-- No active quest → accept best
+	State.LastAcceptAttempt = now
+
 	local ok, reason = QuestManager.Accept(bestName, bestId, bestDef)
 	if ok then
-		return "accepted", bestName .. ":" .. bestId
+		if State.QuestDef == bestDef then
+			return "accepted", bestName .. ":" .. bestId
+		end
+		return "switched", bestName .. ":" .. bestId
 	end
 
 	if reason == "already_completed" then
@@ -235,25 +273,26 @@ function QuestManager.EnsureQuest()
 end
 
 -- ============================================================
--- Called by Combat when a kill is confirmed / quest should be re-checked
+-- Enemy lookup with CACHED scan (fixes lag)
 -- ============================================================
-function QuestManager.NotifyProgress()
-	if not QuestManager.IsActive() then
-		return
-	end
-	-- Ask the server if the quest is done
-	local ok, result = pcall(function()
-		return CommF:InvokeServer("QuestProgress", "Check")
-	end)
-	if ok and result == 2 then
-		-- Server reports completed
-		QuestManager.MarkCompleted(State.QuestName, State.QuestId)
+local enemyCache = {}
+local enemyCacheTime = 0
+local CACHE_INTERVAL = 2 -- seconds
+
+local function refreshEnemyCache()
+	enemyCache = {}
+	local map = workspace:FindFirstChild("Map") or workspace
+	for _, mob in ipairs(map:GetChildren()) do
+		if mob:IsA("Model") then
+			local hum = mob:FindFirstChildOfClass("Humanoid")
+			if hum and hum.Health > 0 then
+				enemyCache[mob.Name] = enemyCache[mob.Name] or {}
+				table.insert(enemyCache[mob.Name], mob)
+			end
+		end
 	end
 end
 
--- ============================================================
--- Enemy lookup
--- ============================================================
 function QuestManager.FindNearestEnemy()
 	if not QuestManager.IsActive() then
 		return nil
@@ -265,18 +304,33 @@ function QuestManager.FindNearestEnemy()
 		return nil
 	end
 
-	local wanted = State.Enemy
-	local closest, closestDist = nil, math.huge
-	local map = workspace:FindFirstChild("Map") or workspace
+	-- Refresh cache every 2s
+	if tick() - enemyCacheTime > CACHE_INTERVAL then
+		refreshEnemyCache()
+		enemyCacheTime = tick()
+	end
 
-	for _, mob in ipairs(map:GetDescendants()) do
-		if mob:IsA("Model") and mob.Name == wanted then
+	local wanted = State.Enemy
+	local list = enemyCache[wanted]
+	if not list or #list == 0 then
+		-- force refresh once, then bail
+		refreshEnemyCache()
+		enemyCacheTime = tick()
+		list = enemyCache[wanted]
+		if not list or #list == 0 then
+			return nil
+		end
+	end
+
+	local closest, closestDist = nil, math.huge
+	for _, mob in ipairs(list) do
+		if mob.Parent then
 			local hum = mob:FindFirstChildOfClass("Humanoid")
 			local mobRoot = mob:FindFirstChild("HumanoidRootPart")
 			if hum and hum.Health > 0 and mobRoot then
-				local dist = (mobRoot.Position - root.Position).Magnitude
-				if dist < closestDist then
-					closest, closestDist = mob, dist
+				local d = (mobRoot.Position - root.Position).Magnitude
+				if d < closestDist then
+					closest, closestDist = mob, d
 				end
 			end
 		end

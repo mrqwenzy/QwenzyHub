@@ -143,9 +143,6 @@ function Combat.Build(Tab, App)
 		return false
 	end
 
-	-- ============================================================
-	-- Main logic
-	-- ============================================================
 	local function Update()
 		if not App.State.Autofarm.Active then
 			RAM.Status = "Idle"
@@ -159,45 +156,46 @@ function Combat.Build(Tab, App)
 			return
 		end
 
-		-- 1. Kill detection → notify QuestManager
-		if CheckForKill() then
-			QuestManager.NotifyProgress()
-		end
-
-		-- 2. Ensure a quest is active / switch to a better one
+		-- 1. Ensure quest (handles accept, switch on level-up, completion detection)
 		local action, reason = QuestManager.EnsureQuest()
-
-		if action == "completed" then
-			RAM.Status = "QuestCompleted"
-		elseif action == "switched" then
-			RAM.Status = "QuestSwitched:" .. (reason or "")
-			RAM.Target = nil
-		elseif action == "accepted" then
-			RAM.Status = "QuestAccepted:" .. (reason or "")
-			RAM.Target = nil
-		elseif action == "failed" then
-			RAM.Status = "QuestFail:" .. (reason or "")
+		if action ~= "none" then
+			RAM.Status = action .. ":" .. (reason or "")
+			if action == "accepted" or action == "switched" then
+				RAM.Target = nil
+			end
 		end
 
-		RAM.CurrentQuest = GetCurrentQuest()
-		RAM.RequiredEnemy = GetRequiredEnemy()
+		RAM.CurrentQuest = QuestManager.GetState().QuestName
+		RAM.RequiredEnemy = QuestManager.GetEnemy()
 
 		if not RAM.CurrentQuest or not RAM.RequiredEnemy then
-			if RAM.Status == "Idle" then
-				RAM.Status = "NoQuest"
+			RAM.Status = "NoQuest:" .. (reason or "")
+			return
+		end
+
+		-- 2. Target
+		if
+			RAM.Target
+			and (
+				not RAM.Target.Parent
+				or RAM.Target.Name ~= RAM.RequiredEnemy
+				or not RAM.Target:FindFirstChildOfClass("Humanoid")
+				or RAM.Target.Humanoid.Health <= 0
+			)
+		then
+			RAM.Target = nil
+		end
+
+		if not RAM.Target then
+			RAM.Target = QuestManager.FindNearestEnemy()
+			if not RAM.Target then
+				RAM.Status = "NoEnemy:" .. RAM.RequiredEnemy
+				return
 			end
-			return
 		end
 
-		-- 3. Find target
-		local target = GetTarget()
-		if not target then
-			RAM.Status = "NoEnemy:" .. RAM.RequiredEnemy
-			return
-		end
-
-		-- 4. Move / attack
-		local mobRoot = target:FindFirstChild("HumanoidRootPart")
+		-- 3. Move/attack
+		local mobRoot = RAM.Target:FindFirstChild("HumanoidRootPart")
 		if not mobRoot then
 			RAM.Target = nil
 			return
@@ -206,16 +204,10 @@ function Combat.Build(Tab, App)
 		local dist = (mobRoot.Position - root.Position).Magnitude
 		if dist > 8 then
 			RAM.Status = "Moving"
-			MoveToTarget(target)
+			MoveToTarget(RAM.Target)
 		else
 			RAM.Status = "Attacking"
-			AttackTarget(target)
-		end
-
-		-- 5. Periodic progress check (in case the server completes it early)
-		if tick() - RAM.LastKillCheck > 1 then
-			RAM.LastKillCheck = tick()
-			QuestManager.NotifyProgress()
+			AttackTarget(RAM.Target)
 		end
 	end
 
