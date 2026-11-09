@@ -17,7 +17,7 @@ function Combat.Build(Tab, App)
 		end,
 	})
 
-	local AttackDelay = Tab:Slider({
+	local AttackDelay = AttackSection:Slider({
 		Title = "Fast attack interval",
 		Value = {
 			Min = 0.1, -- minimum value
@@ -32,9 +32,11 @@ function Combat.Build(Tab, App)
 		end,
 	})
 	App.ConfigFiles:Register("Combat.FastAttack", FastAttack, false)
+	App.ConfigFiles:Register("Combat.AttackDelay", AttackDelay, 0.4)
 
 	return {
 		FastAttack = FastAttack,
+		AttackDelay = AttackDelay,
 	}
 end
 
