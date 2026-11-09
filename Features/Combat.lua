@@ -10,6 +10,7 @@ function Combat.Build(Tab, App)
 	local AttackSection = Tab:Section({
 		Title = "Attack",
 	})
+	AttackSection:Open()
 
 	local FastAttack = AttackSection:Toggle({
 		Title = "Fast Attack",

@@ -63,7 +63,10 @@ function ConfigManager.new()
 		assert(DefaultValue ~= nil, "Config element must have an explicit default value")
 		Adapter = Adapter or {}
 		assert(type(Adapter.Get) == "function" or Element.Value ~= nil, "Config element needs Value or Adapter.Get")
-		assert(type(Adapter.Set) == "function" or type(Element.Set) == "function", "Config element needs Set(value) or Adapter.Set")
+		assert(
+			type(Adapter.Set) == "function" or type(Element.Set) == "function",
+			"Config element needs Set(value) or Adapter.Set"
+		)
 
 		self.Elements[Flag] = {
 			Element = Element,
@@ -127,7 +130,12 @@ function ConfigManager.new()
 		local Values = {}
 		for Flag, Entry in pairs(self.Elements) do
 			local Value = Entry.Get and Entry.Get() or getElementValue(Entry.Element)
-			if type(Value) == "boolean" or type(Value) == "number" or type(Value) == "string" or type(Value) == "table" then
+			if
+				type(Value) == "boolean"
+				or type(Value) == "number"
+				or type(Value) == "string"
+				or type(Value) == "table"
+			then
 				Values[Flag] = Value
 			end
 		end
@@ -188,8 +196,12 @@ function ConfigManager.new()
 			if type(Entry.Default) == "number" and type(Value) == "number" then
 				local Spec = Entry.Element.Value
 				if type(Spec) == "table" then
-					if type(Spec.Min) == "number" then Value = math.max(Value, Spec.Min) end
-					if type(Spec.Max) == "number" then Value = math.min(Value, Spec.Max) end
+					if type(Spec.Min) == "number" then
+						Value = math.max(Value, Spec.Min)
+					end
+					if type(Spec.Max) == "number" then
+						Value = math.min(Value, Spec.Max)
+					end
 				end
 			end
 
@@ -231,6 +243,7 @@ function ConfigManager.new()
 
 	function self:BuildUI(Tab)
 		local Section = Tab:Section({ Title = "Config Files" })
+		Section:Open()
 		local SelectedName = self.CurrentName
 		local NameInput
 		local ConfigDropdown
@@ -240,7 +253,9 @@ function ConfigManager.new()
 				return
 			end
 			local Names = self:List()
-			if #Names == 0 then Names = { "default" } end
+			if #Names == 0 then
+				Names = { "default" }
+			end
 			ConfigDropdown:Refresh(Names)
 
 			if not table.find(Names, SelectedName) then
@@ -262,7 +277,9 @@ function ConfigManager.new()
 		})
 
 		local Names = self:List()
-		if #Names == 0 then Names = { "default" } end
+		if #Names == 0 then
+			Names = { "default" }
+		end
 		if not table.find(Names, SelectedName) then
 			SelectedName = Names[1]
 		end

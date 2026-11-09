@@ -7,6 +7,8 @@ function Settings.Build(Tab, App, WindUI)
 		Title = "Appearance",
 	})
 
+	ThemeSection:Open()
+
 	local Themes = {}
 	for Name in pairs(WindUI:GetThemes()) do
 		table.insert(Themes, Name)
