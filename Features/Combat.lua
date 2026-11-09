@@ -1,18 +1,26 @@
 local Combat = {}
 
 function Combat.Build(Tab, App)
+	App.State.FastAttack = App.State.FastAttack or {
+		Active = false,
+		LastUse = 0,
+		Interval = 0.4,
+	}
+
 	local AttackSection = Tab:Section({
 		Title = "Attack",
 	})
 
 	local FastAttack = AttackSection:Toggle({
 		Title = "Fast Attack",
-		Value = false,
+		Value = App.State.FastAttack.Active,
 		Callback = function(Enabled)
 			local Previous = App.State.FastAttack
+
 			App.State.FastAttack = {
 				Active = Enabled,
-				LastUse = Previous and Previous.LastUse or 0,
+				LastUse = Previous.LastUse or 0,
+				Interval = Previous.Interval or 0.4,
 			}
 		end,
 	})
@@ -20,17 +28,18 @@ function Combat.Build(Tab, App)
 	local AttackDelay = AttackSection:Slider({
 		Title = "Fast attack interval",
 		Value = {
-			Min = 0.1, -- minimum value
-			Max = 1, -- maximum value
-			Default = 0.4, -- initial value
+			Min = 0.1,
+			Max = 1,
+			Default = App.State.FastAttack.Interval,
 		},
-		Step = 0.01, -- increment step (use 0.1 for floats). optional
-		Locked = false, -- disable slider. optional
-		Flag = "fastattack", -- for config saving. optional
-		Callback = function(value)
-			App.State.FastAttack.Interval = value
+		Step = 0.01,
+		Locked = false,
+		Flag = "fastattack",
+		Callback = function(Value)
+			App.State.FastAttack.Interval = Value
 		end,
 	})
+
 	App.ConfigFiles:Register("Combat.FastAttack", FastAttack, false)
 	App.ConfigFiles:Register("Combat.AttackDelay", AttackDelay, 0.4)
 
