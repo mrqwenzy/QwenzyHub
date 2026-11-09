@@ -34,7 +34,7 @@ local function RunSUNCTest(WindUI)
 		WindUI:Popup({
 			Title = "Compatibility Warning",
 			Content = string.format(
-				"Your executor is missing %d required API(s):\n\n%s\n\nSome features may not work correctly. Do you want to continue?",
+				"Your executor is missing %d required API(s):\n\n%s\n\nSome features may not work correctly.",
 				#MissingAPIs,
 				MissingList
 			),
