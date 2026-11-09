@@ -12,7 +12,7 @@ function Combat.Build(Tab, App)
 	})
 
 	local FastAttack = AttackSection:Toggle({
-		Title = "Fasts Attack",
+		Title = "Fast Attack",
 		Value = App.State.FastAttack.Active,
 		Callback = function(Enabled)
 			local Previous = App.State.FastAttack
@@ -34,7 +34,7 @@ function Combat.Build(Tab, App)
 		},
 		Step = 0.01,
 		Locked = false,
-		Flag = "fastattack",
+		Flag = "dointerval",
 		Callback = function(Value)
 			App.State.FastAttack.Interval = Value
 		end,
