@@ -214,7 +214,9 @@ local function firstEnemy(def)
 end
 
 function QuestManager.Accept(questName, questId, def)
+	print("[QM] StartQuest", questName, questId, "activeBefore:", State.Accepted)
 	local r = CommF:InvokeServer("StartQuest", questName, questId)
+	print("[QM]   result:", r)
 
 	if r == 0 then
 		State.QuestName = questName
@@ -237,13 +239,14 @@ function QuestManager.Accept(questName, questId, def)
 	return false, "unknown:" .. tostring(r)
 end
 
--- ============================================================
--- EnsureQuest
--- ============================================================
 function QuestManager.EnsureQuest()
 	local now = tick()
 
-	-- SELF-HEAL
+	if State.Disabled then
+		return "none", "disabled"
+	end
+
+	-- Self-heal: abandon boss quest
 	if QuestManager.IsActive() and isBossQuest(State.QuestName, State.QuestId, State.QuestDef) then
 		pcall(function()
 			CommF:InvokeServer("AbandonQuest")
@@ -253,59 +256,66 @@ function QuestManager.EnsureQuest()
 		return "abandoned_boss", "boss_detected"
 	end
 
-	-- Global throttle: at most one StartQuest call per second
+	-- HARD GATE: never fire StartQuest more than once per second
 	if now - State.LastAcceptAttempt < 1 then
 		return "none", "throttled"
 	end
 
-	local level = Player.Data.Level.Value
-	local bestName, bestId, bestDef = QuestManager.FindBestQuestForLevel(level)
+	-- ---- Case A: have an active quest → just verify it ----
+	if QuestManager.IsActive() then
+		-- Only re-check completion every 3s
+		if now - State.LastCompletionCheck < 3 then
+			return "none", "active_no_check"
+		end
 
-	-- ---- Completion re-check (only if active) ----
-	if QuestManager.IsActive() and now - State.LastCompletionCheck > 3 then
 		State.LastCompletionCheck = now
 		State.LastAcceptAttempt = now -- consume throttle
 
-		local r = CommF:InvokeServer("StartQuest", State.QuestName, State.QuestId)
-		if r == 2 then
-			QuestManager.MarkCompleted(State.QuestName, State.QuestId)
-			return "completed", State.QuestName .. ":" .. State.QuestId
-		elseif r == 0 then
+		local ok, r = pcall(function()
+			return CommF:InvokeServer("StartQuest", State.QuestName, State.QuestId)
+		end)
+
+		if ok and r == 0 then
+			-- Still active, all good. DO NOT fall through.
 			return "none", "still_active"
+		elseif ok and r == 2 then
+			-- Actually completed
+			QuestManager.MarkCompleted(State.QuestName, State.QuestId)
+			-- fall through to accept next
 		else
-			State.Accepted = false
-			-- fall through
+			-- Server error / unknown — KEEP the current quest, do not accept new
+			return "none", "check_failed:" .. tostring(r)
 		end
 	end
+
+	-- ---- Case B: need to accept (only reached when quest is nil OR just completed) ----
+	local level = Player.Data.Level.Value
+	local bestName, bestId, bestDef = QuestManager.FindBestQuestForLevel(level)
 
 	if not bestName then
 		return "none", "no_quest_available"
 	end
 
-	-- ---- Already active & best isn't better ----
-	if QuestManager.IsActive() then
-		local curDef = State.QuestDef
-		if curDef and bestDef and bestDef.LevelReq <= curDef.LevelReq then
-			return "none", "already_active"
-		end
+	-- Prevent accepting the exact same (name, id) that's already active
+	if State.Accepted and State.QuestName == bestName and State.QuestId == bestId then
+		return "none", "same_quest"
 	end
 
-	-- ---- Accept new / switch ----
 	State.LastAcceptAttempt = now
 
 	local ok, reason = QuestManager.Accept(bestName, bestId, bestDef)
 	if ok then
+		State.LastCompletionCheck = now -- avoid instant re-check
 		return "accepted", bestName .. ":" .. bestId
 	end
 
 	if reason == "already_completed" then
 		QuestManager.MarkCompleted(bestName, bestId)
 		return "completed", bestName .. ":" .. bestId
-	else
-		markFailed(bestName, bestId)
-		State.CachedLevel = -1 -- force picker refresh next tick
 	end
 
+	markFailed(bestName, bestId)
+	State.CachedLevel = -1
 	return "failed", reason
 end
 
