@@ -1,4 +1,4 @@
-return function(WindUI)
+local function RunSUNCTest(WindUI)
 	print("wetefe unc test")
 	local env = (getgenv and getgenv()) or _G
 	local RequiredAPIs = {
@@ -61,3 +61,4 @@ return function(WindUI)
 		print("[Qwenzy] All required executor APIs are supported.")
 	end
 end
+return RunSUNCTest
