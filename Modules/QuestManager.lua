@@ -174,7 +174,7 @@ local function isFailed(name, id)
 end
 
 -- ============================================================
--- Picker (cached)
+-- Picker (cached — re-scans on level change or every 5s)
 -- ============================================================
 local function refreshPickerCache(level)
 	State.CachedLevel = level
@@ -246,17 +246,7 @@ function QuestManager.Accept(questName, questId, def)
 end
 
 -- ============================================================
--- ForceRePick — called when Combat detects "no targets for a while"
--- ============================================================
-function QuestManager.ForceRePick()
-	if QuestManager.IsActive() then
-		QuestManager.MarkCompleted(State.QuestName, State.QuestId)
-	end
-	State.LastAcceptAttempt = 0
-end
-
--- ============================================================
--- EnsureQuest — accepts only when nothing active. No polling.
+-- EnsureQuest — accepts when nothing active, switches on level-up
 -- ============================================================
 function QuestManager.EnsureQuest()
 	if State.Disabled then
@@ -265,7 +255,7 @@ function QuestManager.EnsureQuest()
 
 	local now = tick()
 
-	-- Self-heal boss
+	-- Self-heal: abandon boss quest
 	if QuestManager.IsActive() and isBossQuest(State.QuestName, State.QuestId, State.QuestDef) then
 		pcall(function()
 			CommF:InvokeServer("AbandonQuest")
@@ -275,20 +265,43 @@ function QuestManager.EnsureQuest()
 		return "abandoned_boss", "boss_detected"
 	end
 
-	-- Already have an active quest → do nothing. Completion is detected by Combat.
-	if QuestManager.IsActive() then
-		return "none", "active"
-	end
-
-	-- Throttle
-	if now - State.LastAcceptAttempt < 1 then
-		return "none", "throttled"
-	end
-
+	-- Pick best available for level
 	local level = Player.Data.Level.Value
 	local bestName, bestId, bestDef = QuestManager.FindBestQuestForLevel(level)
+
+	-- Have an active quest
+	if QuestManager.IsActive() then
+		local curDef = State.QuestDef
+		-- Switch only if a higher-level quest is now available
+		if
+			bestName
+			and (bestName ~= State.QuestName or bestId ~= State.QuestId)
+			and bestDef
+			and curDef
+			and bestDef.LevelReq > curDef.LevelReq
+		then
+			pcall(function()
+				CommF:InvokeServer("AbandonQuest")
+			end)
+			State.Accepted = false
+			State.QuestName = nil
+			State.QuestId = nil
+			State.QuestDef = nil
+			State.Enemy = nil
+			State.LastAcceptAttempt = now
+			return "abandoned_for_better", bestName .. ":" .. bestId
+		end
+
+		return "none", "active_ok"
+	end
+
+	-- No active quest → accept best
 	if not bestName then
 		return "none", "no_quest_available"
+	end
+
+	if now - State.LastAcceptAttempt < 1 then
+		return "none", "throttled"
 	end
 
 	State.LastAcceptAttempt = now

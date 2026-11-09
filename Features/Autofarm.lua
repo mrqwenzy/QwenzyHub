@@ -15,7 +15,6 @@ function Combat.Build(Tab, App)
 		CurrentQuest = nil,
 		RequiredEnemy = nil,
 		Status = "Idle",
-		NoTargetSince = nil,
 	}
 
 	local Services = {
@@ -26,8 +25,6 @@ function Combat.Build(Tab, App)
 
 	local Player = Services.Players.LocalPlayer
 	local QuestManager = App.Modules.QuestManager
-
-	local NO_TARGET_TIMEOUT = 5 -- seconds with no target → re-pick
 
 	-- ============================================================
 	-- Detection
@@ -112,13 +109,17 @@ function Combat.Build(Tab, App)
 			return
 		end
 
-		-- 1. Ensure quest (accept when none active; no polling)
+		-- 1. Ensure quest (accept or switch on level-up)
 		local action, reason = QuestManager.EnsureQuest()
 		if action ~= "none" then
 			RAM.Status = action .. ":" .. (reason or "")
-			if action == "accepted" or action == "switched" or action == "abandoned_boss" or action == "completed" then
+			if
+				action == "accepted"
+				or action == "switched"
+				or action == "abandoned_boss"
+				or action == "abandoned_for_better"
+			then
 				RAM.Target = nil
-				RAM.NoTargetSince = nil
 			end
 		end
 
@@ -132,24 +133,10 @@ function Combat.Build(Tab, App)
 
 		-- 2. Target
 		local target = GetTarget()
-
 		if not target then
-			-- Quest completion detection: no target for N seconds
-			if not RAM.NoTargetSince then
-				RAM.NoTargetSince = tick()
-			elseif tick() - RAM.NoTargetSince > NO_TARGET_TIMEOUT then
-				RAM.Status = "NoTargetTimeout -> re-pick"
-				RAM.Target = nil
-				RAM.NoTargetSince = nil
-				QuestManager.ForceRePick()
-				return
-			end
-
 			RAM.Status = "NoEnemy:" .. RAM.RequiredEnemy
 			return
 		end
-
-		RAM.NoTargetSince = nil
 
 		-- 3. Move / attack
 		local mobRoot = target:FindFirstChild("HumanoidRootPart")
@@ -223,13 +210,11 @@ function Combat.Build(Tab, App)
 				RAM.Target = nil
 				RAM.CurrentQuest = nil
 				RAM.RequiredEnemy = nil
-				RAM.NoTargetSince = nil
 				RAM.Status = "Idle"
 				QuestManager.Reset()
 				stopLoop()
 			else
 				RAM.Status = "Starting"
-				RAM.NoTargetSince = nil
 				startLoop()
 			end
 		end,
