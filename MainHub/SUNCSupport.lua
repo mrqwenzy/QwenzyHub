@@ -14,10 +14,6 @@ local function RunSUNCTest(WindUI)
 		"makefolder",
 		"listfiles",
 		"delfile",
-		"sex",
-		"porn",
-		"nugger",
-		"idkkrun",
 	}
 
 	local MissingAPIs = {}
